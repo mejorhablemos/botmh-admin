@@ -5,7 +5,6 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { api } from '../services/api';
-import { useAuth } from '../hooks/useAuth';
 
 interface Message {
   id: string;
@@ -30,7 +29,6 @@ export default function Conversation() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const handoffId = searchParams.get('handoffId');
-  const { user } = useAuth();
 
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);

@@ -12,13 +12,16 @@ export interface LoginResponse {
 
 export interface AdminUser {
   id: string;
-  username: string;
-  role: 'ADMIN' | 'THERAPIST';
-  fullName: string;
   email: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  name: string; // Backend returns 'name', not 'fullName'
+  role: 'admin' | 'therapist' | 'supervisor'; // Lowercase to match backend
+  status: string;
+  permissions?: {
+    handoffs?: string[];
+    conversations?: string[];
+    agents?: string[];
+    reports?: string[];
+  };
 }
 
 export interface AuthContextType {
