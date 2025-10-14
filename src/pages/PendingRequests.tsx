@@ -37,6 +37,7 @@ export default function PendingRequests() {
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, AIAnalysis>>({});
   const [loadingAnalysis, setLoadingAnalysis] = useState<Record<string, boolean>>({});
+  const [savingAsNote, setSavingAsNote] = useState<Record<string, boolean>>({});
 
   // Cargar análisis guardados desde localStorage al montar el componente
   useEffect(() => {
@@ -182,6 +183,26 @@ export default function PendingRequests() {
       setError(err.response?.data?.message || 'Error al cargar análisis de IA');
     } finally {
       setLoadingAnalysis({ ...loadingAnalysis, [sessionId]: false });
+    }
+  };
+
+  const handleSaveAsNote = async (sessionId: string) => {
+    try {
+      setSavingAsNote({ ...savingAsNote, [sessionId]: true });
+
+      // Llamar al endpoint con saveAsNote=true
+      const response = await api.get(`/admin/sessions/${sessionId}/analyze?saveAsNote=true`);
+
+      if (response.data.success) {
+        // Mostrar mensaje de éxito
+        alert('✅ Análisis guardado como nota clínica exitosamente');
+        console.log('[PendingRequests] Análisis guardado como nota:', sessionId);
+      }
+    } catch (err: any) {
+      console.error('Error saving as note:', err);
+      setError(err.response?.data?.message || 'Error al guardar como nota clínica');
+    } finally {
+      setSavingAsNote({ ...savingAsNote, [sessionId]: false });
     }
   };
 
@@ -374,7 +395,7 @@ export default function PendingRequests() {
 
                         {/* Recommendations */}
                         {aiAnalysis[request.sessionId].recommendations.length > 0 && (
-                          <div>
+                          <div className="mb-3">
                             <p className="text-xs text-secondary-600 font-semibold mb-1">💡 Recomendaciones para el Terapeuta</p>
                             <ul className="list-disc list-inside space-y-1">
                               {aiAnalysis[request.sessionId].recommendations.map((rec, idx) => (
@@ -383,6 +404,22 @@ export default function PendingRequests() {
                             </ul>
                           </div>
                         )}
+
+                        {/* Save as Note Button */}
+                        <div className="border-t border-blue-200 pt-3 mt-3">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleSaveAsNote(request.sessionId)}
+                            disabled={savingAsNote[request.sessionId]}
+                          >
+                            {savingAsNote[request.sessionId] ? (
+                              '⏳ Guardando...'
+                            ) : (
+                              '📝 Guardar como Nota Clínica'
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}

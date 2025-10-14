@@ -36,6 +36,17 @@ interface Agent {
   canReceiveCases: boolean;
 }
 
+interface AIAnalysis {
+  summary: string;
+  mainNeed: string;
+  emotionalState: string;
+  urgencyLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  suggestedPriority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  recommendations: string[];
+  keyTopics: string[];
+  riskFactors: string[];
+}
+
 export default function Conversation() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
@@ -55,6 +66,11 @@ export default function Conversation() {
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [reassigning, setReassigning] = useState(false);
+
+  // AI Analysis
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
@@ -191,6 +207,54 @@ export default function Conversation() {
     }
   };
 
+  const handleToggleAIAnalysis = async () => {
+    // Si ya está visible, solo alternar visibilidad
+    if (aiAnalysis) {
+      setShowAIAnalysis(!showAIAnalysis);
+      return;
+    }
+
+    // Cargar análisis si no existe
+    if (!sessionId) return;
+
+    try {
+      setLoadingAnalysis(true);
+      setShowAIAnalysis(true);
+
+      const response = await api.get(`/admin/sessions/${sessionId}/analyze`);
+
+      if (response.data.success) {
+        setAiAnalysis(response.data.data);
+      }
+    } catch (err: any) {
+      console.error('Error loading AI analysis:', err);
+      setError(err.response?.data?.message || 'Error al cargar análisis de IA');
+      setShowAIAnalysis(false);
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  const getUrgencyColor = (level: string) => {
+    switch (level) {
+      case 'CRITICAL': return 'text-red-700 bg-red-100';
+      case 'HIGH': return 'text-orange-700 bg-orange-100';
+      case 'MEDIUM': return 'text-yellow-700 bg-yellow-100';
+      case 'LOW': return 'text-green-700 bg-green-100';
+      default: return 'text-gray-700 bg-gray-100';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT': return 'bg-red-100 text-red-800';
+      case 'HIGH': return 'bg-orange-100 text-orange-800';
+      case 'NORMAL': return 'bg-blue-100 text-blue-800';
+      case 'LOW': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -229,6 +293,9 @@ export default function Conversation() {
               <p className="text-sm text-secondary-600">{session.phoneNumber}</p>
             </div>
             <div className="flex gap-2">
+              <Button variant="ghost" onClick={handleToggleAIAnalysis} disabled={loadingAnalysis}>
+                {loadingAnalysis ? '⏳' : showAIAnalysis ? '🔽' : '🤖'} Análisis IA
+              </Button>
               <Button variant="ghost" onClick={loadSession}>
                 🔄 Actualizar
               </Button>
@@ -253,8 +320,10 @@ export default function Conversation() {
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 bg-secondary-50">
+        {/* Main Content Area - Chat + AI Sidebar */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Messages */}
+          <div className={`flex-1 overflow-y-auto p-4 bg-secondary-50 transition-all ${showAIAnalysis ? 'w-2/3' : 'w-full'}`}>
           <div className="max-w-4xl mx-auto space-y-4">
             {session.messages.map((msg) => {
               const isUser = msg.sender === 'USER';
@@ -298,6 +367,86 @@ export default function Conversation() {
             })}
             <div ref={messagesEndRef} />
           </div>
+        </div>
+
+        {/* AI Analysis Sidebar */}
+        {showAIAnalysis && aiAnalysis && (
+          <div className="w-1/3 bg-white border-l border-secondary-200 overflow-y-auto p-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-card border border-blue-200">
+              <h3 className="text-lg font-bold text-primary-900 mb-4 flex items-center gap-2">
+                🤖 Análisis de IA
+              </h3>
+
+              {/* Summary */}
+              <div className="mb-3">
+                <p className="text-xs text-secondary-600 font-semibold mb-1">Resumen</p>
+                <p className="text-sm text-primary-900">{aiAnalysis.summary}</p>
+              </div>
+
+              {/* Main Info Grid */}
+              <div className="grid grid-cols-1 gap-3 mb-3">
+                <div>
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">Necesidad Principal</p>
+                  <p className="text-sm text-primary-900 font-medium">{aiAnalysis.mainNeed}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">Estado Emocional</p>
+                  <p className="text-sm text-primary-900 font-medium">{aiAnalysis.emotionalState}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">Nivel de Urgencia IA</p>
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${getUrgencyColor(aiAnalysis.urgencyLevel)}`}>
+                    {aiAnalysis.urgencyLevel}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">Prioridad Sugerida</p>
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${getPriorityColor(aiAnalysis.suggestedPriority)}`}>
+                    {aiAnalysis.suggestedPriority}
+                  </span>
+                </div>
+              </div>
+
+              {/* Key Topics */}
+              {aiAnalysis.keyTopics.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">Temas Clave</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiAnalysis.keyTopics.map((topic, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Risk Factors */}
+              {aiAnalysis.riskFactors.length > 0 && (
+                <div className="mb-3 bg-red-50 p-3 rounded-card border border-red-200">
+                  <p className="text-xs text-red-700 font-bold mb-1">⚠️ Factores de Riesgo</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {aiAnalysis.riskFactors.map((risk, idx) => (
+                      <li key={idx} className="text-sm text-red-800">{risk}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {aiAnalysis.recommendations.length > 0 && (
+                <div>
+                  <p className="text-xs text-secondary-600 font-semibold mb-1">💡 Recomendaciones</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {aiAnalysis.recommendations.map((rec, idx) => (
+                      <li key={idx} className="text-sm text-primary-900">{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         </div>
 
         {/* Message Input */}
