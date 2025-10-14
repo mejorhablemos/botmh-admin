@@ -74,14 +74,14 @@ export default function Login() {
             )}
 
             <Input
-              label="Usuario"
-              type="text"
-              placeholder="tu_usuario"
+              label="Email"
+              type="email"
+              placeholder="admin@mejorhablemos.us"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
               fullWidth
-              autoComplete="username"
+              autoComplete="email"
               autoFocus
             />
 

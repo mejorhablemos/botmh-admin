@@ -7,19 +7,27 @@ import type { LoginRequest, LoginResponse, AdminUser } from '../types/auth';
  */
 export const authService = {
   /**
-   * Login with username and password
+   * Login with username (email) and password
    * Stores JWT token and user data in localStorage
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await api.post<LoginResponse>('/admin/auth/login', credentials);
+    // Backend espera 'email', no 'username'
+    const payload = {
+      email: credentials.username, // username es en realidad el email
+      password: credentials.password, // no se valida en desarrollo
+    };
 
-    const { token, user } = response.data;
+    const response = await api.post('/admin/auth/login', payload);
+
+    // Backend devuelve {success, data: {user, token}}
+    const { data } = response.data;
+    const { token, user } = data;
 
     // Store token and user in localStorage
     localStorage.setItem('auth_token', token);
     localStorage.setItem('user', JSON.stringify(user));
 
-    return response.data;
+    return { token, user };
   },
 
   /**
@@ -63,11 +71,14 @@ export const authService = {
    * Verify token with backend (calls /me endpoint)
    */
   async verifyToken(): Promise<AdminUser> {
-    const response = await api.get<AdminUser>('/admin/auth/me');
+    const response = await api.get('/admin/auth/me');
+
+    // Backend devuelve {success, data: user}
+    const { data } = response.data;
 
     // Update user in localStorage
-    localStorage.setItem('user', JSON.stringify(response.data));
+    localStorage.setItem('user', JSON.stringify(data));
 
-    return response.data;
+    return data;
   },
 };
