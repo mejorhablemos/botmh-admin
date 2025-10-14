@@ -25,6 +25,17 @@ interface Session {
   updatedAt: string;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  activeCases: number;
+  maxCases: number;
+  canReceiveCases: boolean;
+}
+
 export default function Conversation() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
@@ -36,6 +47,14 @@ export default function Conversation() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Reassignment modal
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [reassigning, setReassigning] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
@@ -112,6 +131,56 @@ export default function Conversation() {
     }
   };
 
+  const loadAgents = async () => {
+    try {
+      setLoadingAgents(true);
+      const response = await api.get('/admin/agents');
+
+      if (response.data.success) {
+        setAgents(response.data.data);
+      }
+    } catch (err: any) {
+      console.error('Error loading agents:', err);
+      setError(err.response?.data?.message || 'Error al cargar agentes');
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleShowReassignModal = () => {
+    setShowReassignModal(true);
+    loadAgents();
+  };
+
+  const handleCloseReassignModal = () => {
+    setShowReassignModal(false);
+    setSelectedAgentId('');
+    setReassignReason('');
+  };
+
+  const handleReassign = async () => {
+    if (!handoffId || !selectedAgentId) return;
+
+    try {
+      setReassigning(true);
+      setError('');
+
+      await api.post(`/admin/handoffs/${handoffId}/reassign`, {
+        newAgentId: selectedAgentId,
+        reason: reassignReason.trim() || undefined,
+      });
+
+      alert('Caso reasignado exitosamente');
+      handleCloseReassignModal();
+      window.location.href = '/requests'; // Redirect to requests page
+    } catch (err: any) {
+      console.error('Error reassigning handoff:', err);
+      setError(err.response?.data?.message || 'Error al reasignar el caso');
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -154,9 +223,14 @@ export default function Conversation() {
                 🔄 Actualizar
               </Button>
               {handoffId && (
-                <Button variant="primary" onClick={handleResolve}>
-                  ✅ Resolver
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={handleShowReassignModal}>
+                    🔄 Reasignar
+                  </Button>
+                  <Button variant="primary" onClick={handleResolve}>
+                    ✅ Resolver
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -239,6 +313,86 @@ export default function Conversation() {
             </div>
           </form>
         </div>
+
+        {/* Reassignment Modal */}
+        {showReassignModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <h3 className="text-2xl font-bold text-primary-900 mb-4">
+                  🔄 Reasignar Caso
+                </h3>
+
+                {loadingAgents ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-900 mx-auto"></div>
+                    <p className="mt-4 text-secondary-600">Cargando agentes...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-primary-900 mb-2">
+                        Seleccionar Terapeuta/Agente
+                      </label>
+                      <select
+                        value={selectedAgentId}
+                        onChange={(e) => setSelectedAgentId(e.target.value)}
+                        className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">-- Selecciona un agente --</option>
+                        {agents.map((agent) => (
+                          <option key={agent.id} value={agent.id}>
+                            {agent.name} ({agent.role}) - {agent.activeCases}/{agent.maxCases} casos
+                            {agent.status === 'offline' && ' - ⚫ Offline'}
+                            {agent.status === 'busy' && ' - 🔴 Ocupado'}
+                            {!agent.canReceiveCases && ' - ⚠️ No disponible'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-primary-900 mb-2">
+                        Razón de la reasignación (opcional)
+                      </label>
+                      <textarea
+                        value={reassignReason}
+                        onChange={(e) => setReassignReason(e.target.value)}
+                        placeholder="Ej: Especialización requerida, cambio de turno, etc."
+                        rows={3}
+                        className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    {agents.length === 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg mb-4">
+                        No hay agentes disponibles en este momento.
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        variant="ghost"
+                        onClick={handleCloseReassignModal}
+                        disabled={reassigning}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleReassign}
+                        disabled={!selectedAgentId || reassigning}
+                        isLoading={reassigning}
+                      >
+                        🔄 Reasignar Caso
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </MainLayout>
   );
