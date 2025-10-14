@@ -89,7 +89,7 @@ export default function Conversation() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!message.trim() || !handoffId) return;
+    if (!message.trim() || !handoffId || !session) return;
 
     try {
       setSending(true);
@@ -97,6 +97,8 @@ export default function Conversation() {
 
       await api.post(`/admin/handoffs/${handoffId}/respond`, {
         message: message.trim(),
+        phoneNumber: session.phoneNumber,
+        sessionId: session.id,
       });
 
       // Reload session to get new message
