@@ -2,9 +2,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 
-// Pages (will be created)
+// Pages
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import PendingRequests from './pages/PendingRequests';
+import Conversation from './pages/Conversation';
 
 // Create QueryClient for TanStack Query
 const queryClient = new QueryClient({
@@ -28,9 +30,15 @@ function App() {
 
             {/* Protected routes (will add protection later) */}
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/requests" element={<PendingRequests />} />
+            <Route path="/conversation/:sessionId" element={<Conversation />} />
+            <Route path="/conversations" element={<PendingRequests />} />
+            <Route path="/history" element={<Dashboard />} />
+            <Route path="/users" element={<Dashboard />} />
+            <Route path="/reports" element={<Dashboard />} />
 
             {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Router>
       </AuthProvider>
