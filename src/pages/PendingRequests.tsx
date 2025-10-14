@@ -45,15 +45,58 @@ export default function PendingRequests() {
   const loadRequests = async () => {
     try {
       setLoading(true);
+      setError(''); // Limpiar errores previos
+
+      console.log('[PendingRequests] Cargando handoffs desde:', api.defaults.baseURL);
       const response = await api.get('/admin/handoffs');
+      console.log('[PendingRequests] Respuesta recibida:', response.data);
+      console.log('[PendingRequests] Tipo de response.data.data:', typeof response.data.data);
+      console.log('[PendingRequests] ¿Es array?:', Array.isArray(response.data.data));
+      console.log('[PendingRequests] Estructura completa:', JSON.stringify(response.data.data, null, 2));
 
       // Backend returns {success, data: [handoffs]}
       if (response.data.success) {
-        setRequests(response.data.data || []);
+        // El backend puede estar retornando {pending: [], inProgress: []} en lugar de un array directo
+        let handoffs = [];
+
+        if (Array.isArray(response.data.data)) {
+          handoffs = response.data.data;
+        } else if (response.data.data && typeof response.data.data === 'object') {
+          // Si es un objeto con pending/inProgress
+          if (Array.isArray(response.data.data.pending)) {
+            handoffs = response.data.data.pending;
+          }
+          if (Array.isArray(response.data.data.inProgress)) {
+            handoffs = [...handoffs, ...response.data.data.inProgress];
+          }
+        }
+
+        setRequests(handoffs);
+        console.log('[PendingRequests] Handoffs cargados:', handoffs.length);
+      } else {
+        setError('El servidor retornó una respuesta inválida');
+        setRequests([]); // Asegurarse de que sea array vacío
       }
     } catch (err: any) {
-      console.error('Error loading requests:', err);
-      setError(err.response?.data?.message || 'Error al cargar solicitudes');
+      console.error('[PendingRequests] Error loading requests:', err);
+      console.error('[PendingRequests] Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+
+      if (err.response?.status === 401) {
+        setError('Sesión expirada. Por favor inicia sesión nuevamente.');
+        // Redirigir a login después de 2 segundos
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        setError(err.response?.data?.message || err.message || 'Error al cargar solicitudes');
+      }
+
+      // Siempre asegurarse de que requests sea un array
+      setRequests([]);
     } finally {
       setLoading(false);
     }
