@@ -107,11 +107,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-secondary-50 p-4 rounded-card">
               <p className="text-sm text-secondary-600 font-semibold mb-1">Nombre</p>
-              <p className="text-primary-900 font-medium">{user?.fullName}</p>
-            </div>
-            <div className="bg-secondary-50 p-4 rounded-card">
-              <p className="text-sm text-secondary-600 font-semibold mb-1">Usuario</p>
-              <p className="text-primary-900 font-medium">{user?.username}</p>
+              <p className="text-primary-900 font-medium">{user?.name}</p>
             </div>
             <div className="bg-secondary-50 p-4 rounded-card">
               <p className="text-sm text-secondary-600 font-semibold mb-1">Email</p>
@@ -119,14 +115,14 @@ export default function Dashboard() {
             </div>
             <div className="bg-secondary-50 p-4 rounded-card">
               <p className="text-sm text-secondary-600 font-semibold mb-1">Rol</p>
-              <p className="text-primary-900 font-medium">{user?.role}</p>
+              <p className="text-primary-900 font-medium capitalize">{user?.role}</p>
             </div>
             <div className="bg-secondary-50 p-4 rounded-card">
               <p className="text-sm text-secondary-600 font-semibold mb-1">Estado</p>
               <div className="flex items-center gap-2">
-                <span className={`inline-block w-2 h-2 rounded-full ${user?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <p className={`font-semibold ${user?.isActive ? 'text-green-600' : 'text-red-600'}`}>
-                  {user?.isActive ? 'Activo' : 'Inactivo'}
+                <span className={`inline-block w-2 h-2 rounded-full ${user?.status === 'available' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <p className={`font-semibold ${user?.status === 'available' ? 'text-green-600' : 'text-red-600'}`}>
+                  {user?.status === 'available' ? 'Disponible' : 'No Disponible'}
                 </p>
               </div>
             </div>
