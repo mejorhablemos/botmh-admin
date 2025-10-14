@@ -23,7 +23,7 @@ export default function Card({
   };
 
   const finalClassName = `
-    bg-white rounded-lg shadow-md border border-gray-200
+    bg-white rounded-card shadow-sm border border-secondary-200 hover:shadow-md transition-shadow duration-200
     ${paddingStyles[padding]}
     ${className}
   `.trim().replace(/\s+/g, ' ');

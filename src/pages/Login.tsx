@@ -47,23 +47,28 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">MejorHablemos</h1>
-          <p className="text-gray-600 mt-2">Panel de Administración</p>
+          <div className="inline-block bg-primary-900 text-white p-4 rounded-card mb-4 shadow-lg">
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-primary-900">MejorHablemos</h1>
+          <p className="text-secondary-600 mt-2 font-medium">Panel de Administración</p>
         </div>
 
         {/* Login Card */}
-        <Card>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">
+        <Card className="shadow-xl">
+          <h2 className="text-2xl font-semibold text-primary-900 mb-6 text-center">
             Iniciar Sesión
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card">
                 {error}
               </div>
             )}
@@ -102,16 +107,16 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-600">
+          <div className="mt-6 text-center text-sm text-secondary-600">
             <p>¿Olvidaste tu contraseña?</p>
-            <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
+            <a href="#" className="text-primary-700 hover:text-primary-800 font-semibold transition-colors">
               Contacta al administrador
             </a>
           </div>
         </Card>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="mt-8 text-center text-sm text-secondary-500">
           <p>&copy; 2025 MejorHablemos. Todos los derechos reservados.</p>
         </div>
       </div>
