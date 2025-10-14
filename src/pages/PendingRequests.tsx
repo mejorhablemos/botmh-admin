@@ -18,11 +18,25 @@ interface HandoffRequest {
   sessionId: string;
 }
 
+interface AIAnalysis {
+  summary: string;
+  mainNeed: string;
+  emotionalState: string;
+  urgencyLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  suggestedPriority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  recommendations: string[];
+  keyTopics: string[];
+  riskFactors: string[];
+}
+
 export default function PendingRequests() {
   const navigate = useNavigate();
   const [requests, setRequests] = useState<HandoffRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<Record<string, AIAnalysis>>({});
+  const [loadingAnalysis, setLoadingAnalysis] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadRequests();
@@ -79,6 +93,46 @@ export default function PendingRequests() {
   const handleTakeRequest = (handoffId: string, sessionId: string) => {
     // Navigate to conversation page
     navigate(`/conversation/${sessionId}?handoffId=${handoffId}`);
+  };
+
+  const handleToggleAnalysis = async (sessionId: string) => {
+    // Si ya está expandido, colapsar
+    if (expandedAnalysis === sessionId) {
+      setExpandedAnalysis(null);
+      return;
+    }
+
+    // Si ya tenemos el análisis, solo expandir
+    if (aiAnalysis[sessionId]) {
+      setExpandedAnalysis(sessionId);
+      return;
+    }
+
+    // Cargar análisis de IA
+    try {
+      setLoadingAnalysis({ ...loadingAnalysis, [sessionId]: true });
+      const response = await api.get(`/admin/sessions/${sessionId}/analyze`);
+
+      if (response.data.success) {
+        setAiAnalysis({ ...aiAnalysis, [sessionId]: response.data.data });
+        setExpandedAnalysis(sessionId);
+      }
+    } catch (err: any) {
+      console.error('Error loading AI analysis:', err);
+      setError(err.response?.data?.message || 'Error al cargar análisis de IA');
+    } finally {
+      setLoadingAnalysis({ ...loadingAnalysis, [sessionId]: false });
+    }
+  };
+
+  const getUrgencyColor = (level: string) => {
+    switch (level) {
+      case 'CRITICAL': return 'text-red-700 bg-red-100';
+      case 'HIGH': return 'text-orange-700 bg-orange-100';
+      case 'MEDIUM': return 'text-yellow-700 bg-yellow-100';
+      case 'LOW': return 'text-green-700 bg-green-100';
+      default: return 'text-gray-700 bg-gray-100';
+    }
   };
 
   if (loading) {
@@ -172,9 +226,104 @@ export default function PendingRequests() {
                   </div>
 
                   {request.message && (
-                    <div className="bg-secondary-50 p-3 rounded-card">
+                    <div className="bg-secondary-50 p-3 rounded-card mb-3">
                       <p className="text-xs text-secondary-600 font-semibold mb-1">Mensaje del Paciente</p>
                       <p className="text-sm text-primary-900 italic">"{request.message}"</p>
+                    </div>
+                  )}
+
+                  {/* AI Analysis Toggle Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleAnalysis(request.sessionId)}
+                    disabled={loadingAnalysis[request.sessionId]}
+                  >
+                    {loadingAnalysis[request.sessionId] ? (
+                      '⏳ Analizando...'
+                    ) : expandedAnalysis === request.sessionId ? (
+                      '🔼 Ocultar Análisis IA'
+                    ) : (
+                      '🤖 Ver Análisis IA'
+                    )}
+                  </Button>
+
+                  {/* AI Analysis Panel */}
+                  {expandedAnalysis === request.sessionId && aiAnalysis[request.sessionId] && (
+                    <div className="mt-4 border-t border-secondary-200 pt-4">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-card border border-blue-200">
+                        <h4 className="text-sm font-bold text-primary-900 mb-3 flex items-center gap-2">
+                          🤖 Análisis de IA
+                        </h4>
+
+                        {/* Summary */}
+                        <div className="mb-3">
+                          <p className="text-xs text-secondary-600 font-semibold mb-1">Resumen</p>
+                          <p className="text-sm text-primary-900">{aiAnalysis[request.sessionId].summary}</p>
+                        </div>
+
+                        {/* Main Info Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">Necesidad Principal</p>
+                            <p className="text-sm text-primary-900 font-medium">{aiAnalysis[request.sessionId].mainNeed}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">Estado Emocional</p>
+                            <p className="text-sm text-primary-900 font-medium">{aiAnalysis[request.sessionId].emotionalState}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">Nivel de Urgencia IA</p>
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${getUrgencyColor(aiAnalysis[request.sessionId].urgencyLevel)}`}>
+                              {aiAnalysis[request.sessionId].urgencyLevel}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">Prioridad Sugerida</p>
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${getPriorityColor(aiAnalysis[request.sessionId].suggestedPriority)}`}>
+                              {aiAnalysis[request.sessionId].suggestedPriority}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Key Topics */}
+                        {aiAnalysis[request.sessionId].keyTopics.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">Temas Clave</p>
+                            <div className="flex flex-wrap gap-2">
+                              {aiAnalysis[request.sessionId].keyTopics.map((topic, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  {topic}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Risk Factors */}
+                        {aiAnalysis[request.sessionId].riskFactors.length > 0 && (
+                          <div className="mb-3 bg-red-50 p-3 rounded-card border border-red-200">
+                            <p className="text-xs text-red-700 font-bold mb-1">⚠️ Factores de Riesgo</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {aiAnalysis[request.sessionId].riskFactors.map((risk, idx) => (
+                                <li key={idx} className="text-sm text-red-800">{risk}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Recommendations */}
+                        {aiAnalysis[request.sessionId].recommendations.length > 0 && (
+                          <div>
+                            <p className="text-xs text-secondary-600 font-semibold mb-1">💡 Recomendaciones para el Terapeuta</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {aiAnalysis[request.sessionId].recommendations.map((rec, idx) => (
+                                <li key={idx} className="text-sm text-primary-900">{rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
