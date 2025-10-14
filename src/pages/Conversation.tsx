@@ -95,6 +95,14 @@ export default function Conversation() {
       setSending(true);
       setError('');
 
+      console.log('[DEBUG] Enviando respuesta:', {
+        handoffId,
+        message: message.trim(),
+        phoneNumber: session.phoneNumber,
+        sessionId: session.id,
+        sessionCompleta: session,
+      });
+
       await api.post(`/admin/handoffs/${handoffId}/respond`, {
         message: message.trim(),
         phoneNumber: session.phoneNumber,

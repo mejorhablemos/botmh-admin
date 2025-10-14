@@ -38,7 +38,18 @@ export default function PendingRequests() {
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, AIAnalysis>>({});
   const [loadingAnalysis, setLoadingAnalysis] = useState<Record<string, boolean>>({});
 
+  // Cargar análisis guardados desde localStorage al montar el componente
   useEffect(() => {
+    const savedAnalysis = localStorage.getItem('aiAnalysisCache');
+    if (savedAnalysis) {
+      try {
+        const parsed = JSON.parse(savedAnalysis);
+        setAiAnalysis(parsed);
+        console.log('[PendingRequests] Análisis cargados desde cache:', Object.keys(parsed).length);
+      } catch (err) {
+        console.error('[PendingRequests] Error parsing cached analysis:', err);
+      }
+    }
     loadRequests();
   }, []);
 
@@ -157,8 +168,14 @@ export default function PendingRequests() {
       const response = await api.get(`/admin/sessions/${sessionId}/analyze`);
 
       if (response.data.success) {
-        setAiAnalysis({ ...aiAnalysis, [sessionId]: response.data.data });
+        // Actualizar estado con el nuevo análisis
+        const newAnalysis = { ...aiAnalysis, [sessionId]: response.data.data };
+        setAiAnalysis(newAnalysis);
         setExpandedAnalysis(sessionId);
+
+        // Guardar en localStorage para persistencia
+        localStorage.setItem('aiAnalysisCache', JSON.stringify(newAnalysis));
+        console.log('[PendingRequests] Análisis guardado en cache:', sessionId);
       }
     } catch (err: any) {
       console.error('Error loading AI analysis:', err);
