@@ -23,7 +23,8 @@ export default function Sidebar() {
   if (user?.role === 'admin') {
     navItems.push(
       { name: 'Gestión de Usuarios', path: '/users', icon: '👥' },
-      { name: 'Reportes', path: '/reports', icon: '📈' }
+      { name: 'Reportes', path: '/reports', icon: '📈' },
+      { name: 'Departamentos IA', path: '/departments', icon: '🤖' }
     );
   }
 
@@ -34,11 +35,11 @@ export default function Sidebar() {
       {/* Logo/Brand */}
       <div className="p-6 border-b border-primary-800">
         <div className="flex items-center gap-3">
-          <div className="bg-primary-700 p-2 rounded-lg">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-          </div>
+          <img
+            src="/Graficas/Logo MH Verde.jpg"
+            alt="MejorHablemos Logo"
+            className="w-10 h-10 object-contain rounded-lg"
+          />
           <div>
             <h1 className="text-lg font-bold">MejorHablemos</h1>
             <p className="text-xs text-primary-200">Panel Admin</p>

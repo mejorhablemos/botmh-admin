@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { parsePhoneNumber, getCountries } from 'libphonenumber-js';
+import { parsePhoneNumber } from 'libphonenumber-js';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -77,7 +77,7 @@ export default function Conversation() {
   const [error, setError] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
 
   // Reassignment modal
   const [showReassignModal, setShowReassignModal] = useState(false);

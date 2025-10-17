@@ -5,7 +5,7 @@
  * Muestra métricas de sesiones, handoffs, departamentos y actividad.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { authService } from '../services/auth';
 import {
   BarChart,
@@ -98,7 +98,6 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   /**
    * Fetch dashboard stats from API
@@ -127,7 +126,6 @@ export default function Dashboard() {
 
       if (result.success && result.data) {
         setStats(result.data);
-        setLastRefresh(new Date());
       } else {
         throw new Error('Invalid response format');
       }
