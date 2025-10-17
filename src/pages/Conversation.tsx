@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import MainLayout from '../components/layout/MainLayout';
+import { parsePhoneNumber, getCountries } from 'libphonenumber-js';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -15,6 +15,14 @@ interface Message {
   agentName?: string;
 }
 
+interface ClinicalNote {
+  id: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
 interface Session {
   id: string;
   phoneNumber: string;
@@ -23,6 +31,16 @@ interface Session {
   messages: Message[];
   createdAt: string;
   updatedAt: string;
+  clinicalNotes?: ClinicalNote[];
+  metadata?: {
+    location?: {
+      country?: string;
+      region?: string;
+      city?: string;
+      areaCode?: string;
+    };
+    email?: string;
+  };
 }
 
 interface Agent {
@@ -57,7 +75,9 @@ export default function Conversation() {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reassignment modal
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -75,6 +95,8 @@ export default function Conversation() {
   useEffect(() => {
     if (sessionId) {
       loadSession();
+      // Cargar análisis desde localStorage si existe
+      loadCachedAnalysis();
     }
   }, [sessionId]);
 
@@ -82,8 +104,71 @@ export default function Conversation() {
     scrollToBottom();
   }, [session?.messages]);
 
+  // Smart auto-refresh: Only refresh if user is not typing
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const interval = setInterval(async () => {
+      // Skip refresh if user is typing or sending a message
+      if (isTyping || sending) {
+        console.log('[Conversation] Skipping auto-refresh: user is typing or sending');
+        return;
+      }
+
+      try {
+        const response = await api.get(`/admin/sessions/${sessionId}`);
+
+        if (response.data.success) {
+          const newSession = response.data.data;
+
+          // Only update if there are new messages (avoid unnecessary re-renders)
+          if (session && newSession.messages.length > session.messages.length) {
+            console.log('[Conversation] New messages detected, updating session');
+            setSession(newSession);
+          }
+        }
+      } catch (err) {
+        console.error('[Conversation] Error in auto-refresh:', err);
+        // Don't show error to user, just log it
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [sessionId, isTyping, sending, session]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadCachedAnalysis = () => {
+    if (!sessionId) return;
+
+    try {
+      const savedAnalysis = localStorage.getItem('aiAnalysisCache');
+      if (savedAnalysis) {
+        const parsed = JSON.parse(savedAnalysis);
+        if (parsed[sessionId]) {
+          setAiAnalysis(parsed[sessionId]);
+          console.log('[Conversation] Análisis cargado desde cache:', sessionId);
+        }
+      }
+    } catch (err) {
+      console.error('[Conversation] Error loading cached analysis:', err);
+    }
+  };
+
+  const saveCachedAnalysis = (analysis: AIAnalysis) => {
+    if (!sessionId) return;
+
+    try {
+      const savedAnalysis = localStorage.getItem('aiAnalysisCache');
+      const cache = savedAnalysis ? JSON.parse(savedAnalysis) : {};
+      cache[sessionId] = analysis;
+      localStorage.setItem('aiAnalysisCache', JSON.stringify(cache));
+      console.log('[Conversation] Análisis guardado en cache:', sessionId);
+    } catch (err) {
+      console.error('[Conversation] Error saving cached analysis:', err);
+    }
   };
 
   const loadSession = async () => {
@@ -140,7 +225,7 @@ export default function Conversation() {
     if (!handoffId) return;
 
     const confirmed = window.confirm(
-      '¿Estás seguro de marcar esta conversación como resuelta? El chat se cerrará.'
+      '¿Estás seguro de finalizar esta conversación? El chat se cerrará y se marcará como resuelto.'
     );
 
     if (!confirmed) return;
@@ -153,7 +238,7 @@ export default function Conversation() {
       window.location.href = '/requests'; // Redirect to requests page
     } catch (err: any) {
       console.error('Error resolving handoff:', err);
-      setError(err.response?.data?.message || 'Error al resolver la conversación');
+      setError(err.response?.data?.message || 'Error al finalizar la conversación');
     }
   };
 
@@ -224,7 +309,10 @@ export default function Conversation() {
       const response = await api.get(`/admin/sessions/${sessionId}/analyze`);
 
       if (response.data.success) {
-        setAiAnalysis(response.data.data);
+        const analysis = response.data.data;
+        setAiAnalysis(analysis);
+        // Guardar en caché
+        saveCachedAnalysis(analysis);
       }
     } catch (err: any) {
       console.error('Error loading AI analysis:', err);
@@ -257,41 +345,177 @@ export default function Conversation() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="p-8 flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-900 mx-auto"></div>
-            <p className="mt-4 text-secondary-600">Cargando conversación...</p>
-          </div>
+      <div className="p-8 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-900 mx-auto"></div>
+          <p className="mt-4 text-secondary-600">Cargando conversación...</p>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   if (!session) {
     return (
-      <MainLayout>
-        <div className="p-8">
-          <Card>
-            <div className="text-center py-12">
-              <p className="text-xl text-red-600">No se encontró la conversación</p>
-            </div>
-          </Card>
-        </div>
-      </MainLayout>
+      <div className="p-8">
+        <Card>
+          <div className="text-center py-12">
+            <p className="text-xl text-red-600">No se encontró la conversación</p>
+          </div>
+        </Card>
+      </div>
     );
   }
 
+  // Formatear teléfono (e.g., +54 9 11 5754 6672)
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return phone;
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 13 && cleaned.startsWith('549')) {
+      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 3)} ${cleaned.slice(3, 5)} ${cleaned.slice(5, 9)} ${cleaned.slice(9)}`;
+    }
+    return phone;
+  };
+
+  // Mapeo de códigos de país a nombres en español
+  const countryNames: Record<string, string> = {
+    'AR': 'Argentina',
+    'US': 'Estados Unidos',
+    'MX': 'México',
+    'ES': 'España',
+    'CO': 'Colombia',
+    'CL': 'Chile',
+    'PE': 'Perú',
+    'VE': 'Venezuela',
+    'EC': 'Ecuador',
+    'UY': 'Uruguay',
+    'PY': 'Paraguay',
+    'BO': 'Bolivia',
+    'BR': 'Brasil',
+    'CR': 'Costa Rica',
+    'PA': 'Panamá',
+    'GT': 'Guatemala',
+    'HN': 'Honduras',
+    'SV': 'El Salvador',
+    'NI': 'Nicaragua',
+    'DO': 'República Dominicana',
+    'CU': 'Cuba',
+    'PR': 'Puerto Rico',
+  };
+
+  // Mapeo de códigos de área argentinos a provincias/ciudades
+  const argentinaAreaCodes: Record<string, string> = {
+    '11': 'Buenos Aires (CABA y GBA)',
+    '221': 'La Plata, Buenos Aires',
+    '223': 'Mar del Plata, Buenos Aires',
+    '230': 'Bahía Blanca, Buenos Aires',
+    '261': 'Mendoza',
+    '291': 'Neuquén',
+    '299': 'San Carlos de Bariloche, Río Negro',
+    '341': 'Rosario, Santa Fe',
+    '342': 'Santa Fe',
+    '351': 'Córdoba',
+    '358': 'Río Cuarto, Córdoba',
+    '370': 'Formosa',
+    '379': 'Corrientes',
+    '381': 'San Miguel de Tucumán',
+    '383': 'Santiago del Estero',
+    '385': 'La Rioja',
+    '387': 'Salta',
+    '388': 'San Salvador de Jujuy',
+    '2966': 'Río Gallegos, Santa Cruz',
+    '2901': 'Ushuaia, Tierra del Fuego',
+  };
+
+  // Obtener ubicación por número de teléfono
+  const getLocationByPhoneNumber = (phone: string): { country: string; region: string | null } | null => {
+    if (!phone) return null;
+
+    try {
+      const phoneNumber = parsePhoneNumber(phone);
+
+      if (!phoneNumber || !phoneNumber.country) {
+        return null;
+      }
+
+      const countryCode = phoneNumber.country;
+      const countryName = countryNames[countryCode] || countryCode;
+
+      // Para Argentina, intentar detectar la provincia/ciudad por código de área
+      if (countryCode === 'AR') {
+        const nationalNumber = phoneNumber.nationalNumber.toString();
+
+        // Buscar el código de área más largo que coincida
+        let areaCode = '';
+        let location = '';
+
+        for (const [code, loc] of Object.entries(argentinaAreaCodes)) {
+          if (nationalNumber.startsWith(code) && code.length > areaCode.length) {
+            areaCode = code;
+            location = loc;
+          }
+        }
+
+        if (location) {
+          return { country: countryName, region: location };
+        }
+      }
+
+      return { country: countryName, region: null };
+    } catch (error) {
+      console.error('[Conversation] Error parsing phone number:', error);
+      return null;
+    }
+  };
+
   return (
-    <MainLayout>
-      <div className="h-screen flex flex-col">
-        {/* Header */}
+    <div className="h-screen flex flex-col">
+        {/* Header - Información Completa del Paciente */}
         <div className="bg-white border-b border-secondary-200 p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold text-primary-900">{session.userName}</h2>
-              <p className="text-sm text-secondary-600">{session.phoneNumber}</p>
+          <div className="flex justify-between items-start">
+            {/* Información del Paciente */}
+            <div className="flex-1">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-secondary-600 font-semibold">👤 Nombre:</span>
+                  <span className="font-bold text-primary-900 text-base">{session.userName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-secondary-600 font-semibold">📱 Teléfono:</span>
+                  <span className="font-medium text-primary-900">{formatPhoneNumber(session.phoneNumber)}</span>
+                </div>
+                {(() => {
+                  const phoneLocation = getLocationByPhoneNumber(session.phoneNumber);
+                  if (phoneLocation) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="text-secondary-600 font-semibold">🌍 País:</span>
+                        <span className="font-medium text-primary-900">
+                          {phoneLocation.country}
+                          {phoneLocation.region && ` - ${phoneLocation.region}`}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                {session.metadata?.location?.city && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-secondary-600 font-semibold">📍 Ubicación por IP:</span>
+                    <span className="font-medium text-primary-900">
+                      {session.metadata.location.city}, {session.metadata.location.region}, {session.metadata.location.country}
+                    </span>
+                  </div>
+                )}
+                {session.metadata?.email && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-secondary-600 font-semibold">📧 Email:</span>
+                    <span className="font-medium text-primary-900">{session.metadata.email}</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Botones de Acción */}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={handleToggleAIAnalysis} disabled={loadingAnalysis}>
                 {loadingAnalysis ? '⏳' : showAIAnalysis ? '🔽' : '🤖'} Análisis IA
@@ -305,7 +529,7 @@ export default function Conversation() {
                     🔄 Reasignar
                   </Button>
                   <Button variant="primary" onClick={handleResolve}>
-                    ✅ Resolver
+                    ✅ Finalizar
                   </Button>
                 </>
               )}
@@ -317,6 +541,36 @@ export default function Conversation() {
         {error && (
           <div className="mx-4 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card">
             {error}
+          </div>
+        )}
+
+        {/* Clinical Notes Section */}
+        {session.clinicalNotes && session.clinicalNotes.length > 0 && (
+          <div className="mx-4 mt-4 bg-blue-50 border border-blue-200 rounded-card p-4">
+            <h3 className="text-sm font-bold text-primary-900 mb-3 flex items-center gap-2">
+              📋 Historia Clínica ({session.clinicalNotes.length} {session.clinicalNotes.length === 1 ? 'nota' : 'notas'})
+            </h3>
+            <div className="space-y-3">
+              {session.clinicalNotes.map((note) => (
+                <div key={note.id} className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-primary-900">
+                      👨‍⚕️ {note.authorName}
+                    </span>
+                    <span className="text-xs text-secondary-600">
+                      {new Date(note.createdAt).toLocaleString('es-AR', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-primary-900 whitespace-pre-wrap">{note.content}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -455,7 +709,22 @@ export default function Conversation() {
             <div className="flex gap-3">
               <Input
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+
+                  // Mark user as typing
+                  setIsTyping(true);
+
+                  // Clear existing timeout
+                  if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                  }
+
+                  // Set user as not typing after 2 seconds of inactivity
+                  typingTimeoutRef.current = setTimeout(() => {
+                    setIsTyping(false);
+                  }, 2000);
+                }}
                 placeholder="Escribe tu mensaje al paciente..."
                 disabled={sending}
                 fullWidth
@@ -552,7 +821,6 @@ export default function Conversation() {
             </Card>
           </div>
         )}
-      </div>
-    </MainLayout>
+    </div>
   );
 }
